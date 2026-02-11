@@ -1,3 +1,8 @@
+app.get("/", (req, res) => {
+  res.send("Intake Agent is running");
+});
+
+
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
