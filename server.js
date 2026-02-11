@@ -1,8 +1,3 @@
-app.get("/", (req, res) => {
-  res.send("Intake Agent is running");
-});
-
-
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -12,6 +7,11 @@ const twilio = require("twilio");
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+
+app.get("/", (req, res) => {
+  res.send("Intake Agent is running");
+});
+
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
