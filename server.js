@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const OpenAI = require("openai");
-const twilio = require("twilio");
 
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -17,10 +16,6 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
 
 let leads = {};
 
