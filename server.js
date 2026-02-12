@@ -4,80 +4,78 @@ const bodyParser = require("body-parser");
 const OpenAI = require("openai");
 
 const app = express();
-app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-
-app.get("/", (req, res) => {
-  res.send("Intake Agent is running");
-});
-
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+let conversations = {};
 
-let leads = {};
+app.get("/", (req, res) => {
+  res.send("Intake Agent is running");
+});
 
-app.post("/api/new-lead", async (req, res) => {
-  const { name, phone, projectType } = req.body;
+// Start new conversation
+app.post("/start", (req, res) => {
+  const { sessionId, name, projectType } = req.body;
 
-  leads[phone] = {
+  conversations[sessionId] = {
     name,
-    phone,
     projectType,
     state: "ASK_BUDGET",
     data: {}
   };
 
-  await twilioClient.messages.create({
-    body: `Hi ${name}, thanks for reaching out about your ${projectType}. What budget range are you considering?`,
-    from: process.env.TWILIO_PHONE,
-    to: phone,
+  res.json({
+    message: `Hi ${name}, thanks for reaching out about your ${projectType}. What budget range are you considering?`
   });
-
-  res.json({ success: true });
 });
 
-app.post("/sms-reply", async (req, res) => {
-  const incomingMsg = req.body.Body;
-  const fromNumber = req.body.From;
+// Handle conversation step
+app.post("/chat", async (req, res) => {
+  const { sessionId, message } = req.body;
 
-  const lead = leads[fromNumber];
-  if (!lead) return res.sendStatus(200);
+  const convo = conversations[sessionId];
+  if (!convo) return res.status(400).json({ error: "No session found" });
 
-  if (lead.state === "ASK_BUDGET") {
+  if (convo.state === "ASK_BUDGET") {
     const aiResponse = await openai.responses.create({
       model: "gpt-4.1-mini",
       input: `
         Extract a budget category from this message:
-        "${incomingMsg}"
+        "${message}"
 
-        Return only one word:
+        Return one word:
         LOW (under 20k)
         MID (20k-50k)
         HIGH (50k+)
         UNKNOWN
-      `,
+      `
     });
 
-    const budgetCategory = aiResponse.output_text.trim();
+    convo.data.budget = aiResponse.output_text.trim();
+    convo.state = "ASK_TIMELINE";
 
-    lead.data.budget = budgetCategory;
-    lead.state = "ASK_TIMELINE";
-
-    await twilioClient.messages.create({
-      body: `Thanks. And when are you hoping to start the project?`,
-      from: process.env.TWILIO_PHONE,
-      to: fromNumber,
+    return res.json({
+      message: "Thanks. When are you hoping to start the project?"
     });
   }
 
-  res.sendStatus(200);
+  if (convo.state === "ASK_TIMELINE") {
+    convo.data.timeline = message;
+    convo.state = "DONE";
+
+    return res.json({
+      message: "Great. A team member will review your project and reach out shortly.",
+      summary: convo.data
+    });
+  }
+
+  res.json({ message: "Conversation complete." });
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
