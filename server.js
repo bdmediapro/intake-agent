@@ -1,3 +1,8 @@
+app.get("/start", (req, res) => {
+  res.send("Use POST to start a session.");
+});
+
+
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
