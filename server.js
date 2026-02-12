@@ -1,6 +1,3 @@
-app.get("/start", (req, res) => {
-  res.send("Use POST to start a session.");
-});
 
 
 require("dotenv").config();
@@ -84,3 +81,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+app.get("/start", (req, res) => {
+  res.send("Use POST to start a session.");
+});
+
