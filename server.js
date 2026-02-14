@@ -129,6 +129,34 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Database connection failed:", err.message);
   }
 });
+
+/* ==============================
+   BASIC AUTH MIDDLEWARE
+============================== */
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
+
+  if (!auth || !auth.startsWith("Basic ")) {
+    res.setHeader("WWW-Authenticate", 'Basic realm="Dashboard"');
+    return res.status(401).send("Authentication required.");
+  }
+
+  const base64Credentials = auth.split(" ")[1];
+  const credentials = Buffer.from(base64Credentials, "base64").toString("ascii");
+  const [username, password] = credentials.split(":");
+
+  if (
+    username === process.env.DASHBOARD_USER &&
+    password === process.env.DASHBOARD_PASS
+  ) {
+    return next();
+  }
+
+  res.setHeader("WWW-Authenticate", 'Basic realm="Dashboard"');
+  return res.status(401).send("Invalid credentials.");
+}
+
+
 /* ==============================
    DASHBOARD
 ============================== */
