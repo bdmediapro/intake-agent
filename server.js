@@ -160,8 +160,8 @@ function requireAuth(req, res, next) {
 /* ==============================
    DASHBOARD
 ============================== */
-app.get("/dashboard", async (req, res) => {
-  try {
+app.get("/dashboard", requireAuth, async (req, res) => {
+   try {
     const result = await pool.query(
       "SELECT * FROM leads ORDER BY created_at DESC"
     );
