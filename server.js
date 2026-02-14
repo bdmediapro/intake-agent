@@ -93,20 +93,10 @@ app.post("/complete", async (req, res) => {
     if (convo.data.timeline === "ASAP") score += 3;
     if (convo.data.timeline === "SOON") score += 2;
 
-// TEMPORARY: Disable OpenAI
-const summary = "AI temporarily disabled.";
-
-
-Write a short contractor summary with urgency and sales angle.`
-    });
-
-    const summary =
-      aiResponse.output?.[0]?.content?.[0]?.text || "Summary unavailable";
+    const summary = "AI temporarily disabled.";
 
     await pool.query(
-      `INSERT INTO leads 
-      (project_type, budget, timeline, name, email, phone, zip, score, summary)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      "INSERT INTO leads (project_type, budget, timeline, name, email, phone, zip, score, summary) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
       [
         convo.projectType,
         convo.data.budget,
@@ -124,13 +114,13 @@ Write a short contractor summary with urgency and sales angle.`
       from: process.env.EMAIL_USER,
       to: process.env.CONTRACTOR_EMAIL,
       subject: "New Qualified Remodel Lead",
-      text: `Name: ${name}
-Email: ${email}
-Phone: ${phone}
-ZIP: ${zip}
-Score: ${score}
-
-${summary}`
+      text:
+        "Name: " + name +
+        "\nEmail: " + email +
+        "\nPhone: " + phone +
+        "\nZIP: " + zip +
+        "\nScore: " + score +
+        "\n\n" + summary
     });
 
     res.json({ success: true });
@@ -140,6 +130,7 @@ ${summary}`
     res.status(500).json({ error: "Internal error" });
   }
 });
+
 
 /* ==============================
    START SERVER
