@@ -187,9 +187,11 @@ function requireAuth(req, res, next) {
 ============================== */
 app.get("/dashboard", requireAuth, async (req, res) => {
    try {
-    const result = await pool.query(
-      "SELECT * FROM leads ORDER BY created_at DESC"
-    );
+  const contractorId = 1; // temporary hardcode
+const result = await pool.query(
+  "SELECT * FROM leads WHERE contractor_id = $1 ORDER BY created_at DESC",
+  [contractorId]
+);
 
     const leads = result.rows;
 
