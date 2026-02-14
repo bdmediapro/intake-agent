@@ -1,3 +1,9 @@
+const OpenAI = require("openai");
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 require("dotenv").config();
 const express = require("express");
 const { Pool } = require("pg");
@@ -112,7 +118,43 @@ app.post("/complete", async (req, res) => {
     if (timeline === "ASAP") score += 3;
     if (timeline === "SOON") score += 2;
 
-    const summary = "AI disabled for now.";
+let summary = "Summary unavailable.";
+
+try {
+  const aiResponse = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    input: `
+You are an AI assistant helping contractors evaluate new remodeling leads.
+
+Generate a short structured summary with:
+
+1. Lead Quality Score Explanation
+2. Urgency Level
+3. Estimated Project Value Tier
+4. Recommended Sales Angle
+
+Project Type: ${projectType}
+Budget: ${budget}
+Timeline: ${timeline}
+ZIP: ${zip}
+Score: ${score}
+
+Keep it concise but actionable.
+    `
+  });
+
+  if (
+    aiResponse.output &&
+    aiResponse.output[0] &&
+    aiResponse.output[0].content &&
+    aiResponse.output[0].content[0]
+  ) {
+    summary = aiResponse.output[0].content[0].text.trim();
+  }
+
+} catch (err) {
+  console.error("AI summary error:", err.message);
+}
 
     await pool.query(
       `INSERT INTO leads 
