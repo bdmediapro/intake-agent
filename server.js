@@ -256,33 +256,29 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log("Server running on port", PORT);
 
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS contractors (
-        id SERIAL PRIMARY KEY,
-        name TEXT,
-        email TEXT UNIQUE,
-        password TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+  await pool.query(`
+  CREATE TABLE IF NOT EXISTS leads (
+    id SERIAL PRIMARY KEY,
+    project_type TEXT,
+    budget TEXT,
+    timeline TEXT,
+    name TEXT,
+    email TEXT,
+    phone TEXT,
+    zip TEXT,
+    score INT,
+    summary TEXT,
+    contractor_id INT,
+    transcript TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`);
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS leads (
-        id SERIAL PRIMARY KEY,
-        project_type TEXT,
-        budget TEXT,
-        timeline TEXT,
-        name TEXT,
-        email TEXT,
-        phone TEXT,
-        zip TEXT,
-        score INT,
-        summary TEXT,
-        contractor_id INT,
-        transcript TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+await pool.query(`
+  ALTER TABLE leads
+  ADD COLUMN IF NOT EXISTS transcript TEXT;
+`);
+
 
     console.log("Database ready");
   } catch (err) {

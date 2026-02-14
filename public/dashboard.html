@@ -1,31 +1,74 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dashboard</title>
+  <title>Lead Intelligence Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Arial; padding:40px; background:#f5f3ef; }
-    table { width:100%; border-collapse:collapse; background:white; }
-    th, td { padding:10px; border:1px solid #ddd; }
-    th { background:#2e3d34; color:white; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f3ef;
+      padding: 40px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    .intake-link {
+      margin-bottom: 30px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .lead-card {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      color: white;
+      margin-right: 10px;
+    }
+
+    .high { background: #d9534f; }
+    .medium { background: #f0ad4e; }
+    .low { background: #5bc0de; }
+
+    .summary {
+      margin-top: 10px;
+      white-space: pre-line;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 6px;
+      display: none;
+    }
+
+    button {
+      padding: 6px 12px;
+      margin-top: 10px;
+      background: #2e3d34;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
-<h1>Your Leads</h1>
+<h1>Lead Intelligence</h1>
 
-<div id="intakeLink"></div>
+<div class="intake-link" id="intakeLink"></div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Project</th>
-      <th>Budget</th>
-      <th>Name</th>
-    </tr>
-  </thead>
-  <tbody id="leadTable"></tbody>
-</table>
+<div id="leads"></div>
 
 <script>
 async function loadDashboard() {
@@ -37,9 +80,7 @@ async function loadDashboard() {
   }
 
   const response = await fetch("/dashboard-data", {
-    headers: {
-      "Authorization": token
-    }
+    headers: { "Authorization": token }
   });
 
   if (response.status === 401) {
@@ -48,25 +89,59 @@ async function loadDashboard() {
   }
 
   const data = await response.json();
+  const leadsContainer = document.getElementById("leads");
 
-  const intakeLink = 
+  const intakeLink =
     window.location.origin + "/?contractorId=" + data.contractorId;
 
   document.getElementById("intakeLink").innerHTML =
-    "<p><strong>Your Intake Link:</strong> " + intakeLink + "</p>";
-
-  const table = document.getElementById("leadTable");
+    "<strong>Your Intake Link:</strong><br>" + intakeLink;
 
   data.leads.forEach(lead => {
-    table.innerHTML += `
-      <tr>
-        <td>${new Date(lead.created_at).toLocaleDateString()}</td>
-        <td>${lead.project_type}</td>
-        <td>${lead.budget}</td>
-        <td>${lead.name}</td>
-      </tr>
+
+    let badgeClass = "low";
+    let badgeLabel = "Low";
+
+    if (lead.score >= 5) {
+      badgeClass = "high";
+      badgeLabel = "High Intent";
+    } else if (lead.score >= 3) {
+      badgeClass = "medium";
+      badgeLabel = "Warm";
+    }
+
+    const card = document.createElement("div");
+    card.className = "lead-card";
+
+    card.innerHTML = `
+      <div>
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+        <strong>${lead.project_type}</strong>
+      </div>
+
+      <div>
+        ${lead.name} • ${lead.email} • ${lead.phone || "No phone"}
+      </div>
+
+      <div>
+        Budget: ${lead.budget} | Timeline: ${lead.timeline}
+      </div>
+
+      <button onclick="toggleSummary(this)">View AI Sales Brief</button>
+
+      <div class="summary">
+        ${lead.summary || "No summary available."}
+      </div>
     `;
+
+    leadsContainer.appendChild(card);
   });
+}
+
+function toggleSummary(button) {
+  const summary = button.nextElementSibling;
+  summary.style.display =
+    summary.style.display === "block" ? "none" : "block";
 }
 
 loadDashboard();
