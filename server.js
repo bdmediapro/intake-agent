@@ -7,7 +7,7 @@ app.use(express.json());
 app.use(express.static("public"));
 
 /* ==============================
-   POSTGRES
+   DATABASE
 ============================== */
 console.log("DATABASE_URL AT START:", process.env.DATABASE_URL);
 
@@ -33,9 +33,9 @@ app.post("/start", (req, res) => {
     data: {},
   };
 
+  console.log("Session started:", sessionId, "Contractor:", contractorId);
   res.json({ success: true });
 });
-
 
 /* ==============================
    CHAT
@@ -75,25 +75,24 @@ app.post("/complete", async (req, res) => {
     if (convo.data.timeline === "SOON") score += 2;
 
     const summary = "AI disabled for now.";
-     
-await pool.query(
-  "INSERT INTO leads (project_type, budget, timeline, name, email, phone, zip, score, summary, contractor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-  [
-    convo.projectType,
-    convo.data.budget,
-    convo.data.timeline,
-    name,
-    email,
-    phone,
-    zip,
-    score,
-    summary,
-    convo.contractorId
-  ]
-);
 
+    await pool.query(
+      "INSERT INTO leads (project_type, budget, timeline, name, email, phone, zip, score, summary, contractor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+      [
+        convo.projectType,
+        convo.data.budget,
+        convo.data.timeline,
+        name,
+        email,
+        phone,
+        zip,
+        score,
+        summary,
+        convo.contractorId
+      ]
+    );
 
-    console.log("Lead saved to database");
+    console.log("Lead saved to database for contractor:", convo.contractorId);
 
     res.json({ success: true });
 
@@ -104,94 +103,16 @@ await pool.query(
 });
 
 /* ==============================
-   START SERVER
+   DASHBOARD (TEMP CONTRACTOR 1)
 ============================== */
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, "0.0.0.0", async () => {
-  console.log("Server running on port " + PORT);
-
+app.get("/dashboard", async (req, res) => {
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS leads (
-        id SERIAL PRIMARY KEY,
-        project_type TEXT,
-        budget TEXT,
-        timeline TEXT,
-        name TEXT,
-        email TEXT,
-        phone TEXT,
-        zip TEXT,
-        score INT,
-        summary TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    console.log("Database initialized");
-  } catch (err) {
-    console.error("Database connection failed:", err.message);
-  }
-});
+    const contractorId = 1; // TEMPORARY until login system
 
-await pool.query(`
-  INSERT INTO contractors (name, email, password)
-  VALUES ('Demo Contractor', 'demo@contractor.com', 'password123')
-  ON CONFLICT (email) DO NOTHING;
-`);
-
-await pool.query(`
-  CREATE TABLE IF NOT EXISTS contractors (
-    id SERIAL PRIMARY KEY,
-    name TEXT,
-    email TEXT UNIQUE,
-    password TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-await pool.query(`
-  ALTER TABLE leads
-  ADD COLUMN IF NOT EXISTS contractor_id INT REFERENCES contractors(id);
-`);
-
-
-/* ==============================
-   BASIC AUTH MIDDLEWARE
-============================== */
-function requireAuth(req, res, next) {
-  const auth = req.headers.authorization;
-
-  if (!auth || !auth.startsWith("Basic ")) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="Dashboard"');
-    return res.status(401).send("Authentication required.");
-  }
-
-  const base64Credentials = auth.split(" ")[1];
-  const credentials = Buffer.from(base64Credentials, "base64").toString("ascii");
-  const [username, password] = credentials.split(":");
-
-  if (
-    username === process.env.DASHBOARD_USER &&
-    password === process.env.DASHBOARD_PASS
-  ) {
-    return next();
-  }
-
-  res.setHeader("WWW-Authenticate", 'Basic realm="Dashboard"');
-  return res.status(401).send("Invalid credentials.");
-}
-
-
-/* ==============================
-   DASHBOARD
-============================== */
-app.get("/dashboard", requireAuth, async (req, res) => {
-   try {
-  const contractorId = 1; // temporary hardcode
-const result = await pool.query(
-  "SELECT * FROM leads WHERE contractor_id = $1 ORDER BY created_at DESC",
-  [contractorId]
-);
+    const result = await pool.query(
+      "SELECT * FROM leads WHERE contractor_id = $1 ORDER BY created_at DESC",
+      [contractorId]
+    );
 
     const leads = result.rows;
 
@@ -248,5 +169,58 @@ const result = await pool.query(
   } catch (err) {
     console.error("Dashboard error:", err);
     res.status(500).send("Dashboard failed");
+  }
+});
+
+/* ==============================
+   START SERVER
+============================== */
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, "0.0.0.0", async () => {
+  console.log("Server running on port " + PORT);
+
+  try {
+
+    /* CONTRACTORS TABLE */
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contractors (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        email TEXT UNIQUE,
+        password TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    /* LEADS TABLE */
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id SERIAL PRIMARY KEY,
+        project_type TEXT,
+        budget TEXT,
+        timeline TEXT,
+        name TEXT,
+        email TEXT,
+        phone TEXT,
+        zip TEXT,
+        score INT,
+        summary TEXT,
+        contractor_id INT REFERENCES contractors(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    /* SEED DEMO CONTRACTOR */
+    await pool.query(`
+      INSERT INTO contractors (name, email, password)
+      VALUES ('Demo Contractor', 'demo@contractor.com', 'password123')
+      ON CONFLICT (email) DO NOTHING;
+    `);
+
+    console.log("Database initialized with contractors");
+
+  } catch (err) {
+    console.error("Database init failed:", err.message);
   }
 });
