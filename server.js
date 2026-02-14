@@ -58,11 +58,10 @@ async function initDB() {
     console.error("Database init error:", err);
   }
 }
-
 initDB();
 
 /* ==============================
-   TEMP MEMORY STORE
+   TEMP SESSION STORE
 ============================== */
 let conversations = {};
 
@@ -74,7 +73,36 @@ app.get("/health", (req, res) => {
 });
 
 /* ==============================
-   BASIC ROOT CHECK
+   OPENAI TEST ROUTE
+============================== */
+app.get("/test-ai", async (req, res) => {
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-4.1-mini",
+      input: "Say hello."
+    });
+
+    let output = "No response";
+
+    if (
+      response.output &&
+      response.output[0] &&
+      response.output[0].content &&
+      response.output[0].content[0]
+    ) {
+      output = response.output[0].content[0].text;
+    }
+
+    res.json({ message: output });
+
+  } catch (err) {
+    console.error("AI test failed:", err);
+    res.status(500).send("AI failed");
+  }
+});
+
+/* ==============================
+   ROOT
 ============================== */
 app.get("/", (req, res) => {
   res.send("Intake Agent is running");
@@ -122,7 +150,7 @@ app.post("/chat", (req, res) => {
 });
 
 /* ==============================
-   COMPLETE (Store + Score + AI + Email)
+   COMPLETE (Score + AI + DB + Email)
 ============================== */
 app.post("/complete", async (req, res) => {
   try {
@@ -178,8 +206,9 @@ Include:
       ) {
         summary = aiResponse.output[0].content[0].text.trim();
       }
+
     } catch (aiError) {
-      console.error("OpenAI error:", aiError);
+      console.error("OpenAI summary error:", aiError);
     }
 
     convo.data.summary = summary;
