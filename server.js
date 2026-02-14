@@ -333,3 +333,52 @@ app.get("/dashboard-data", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+app.post("/ai-intake", async (req, res) => {
+  try {
+    const { messages } = req.body;
+
+    const response = await openai.responses.create({
+      model: "gpt-4.1-mini",
+      input: [
+        {
+          role: "system",
+          content: `
+You are an AI intake assistant for remodeling contractors.
+
+Your job:
+1. Ask one question at a time.
+2. Collect:
+   - projectType
+   - budgetRange (LOW, MID, HIGH)
+   - timeline (ASAP, SOON, LATER, EXPLORING)
+   - zipCode
+3. Keep tone warm and concise.
+4. When you have all required info, respond ONLY with:
+
+FINAL_JSON:
+{
+  "projectType": "...",
+  "budgetRange": "...",
+  "timeline": "...",
+  "zipCode": "..."
+}
+
+Do not add anything else when returning FINAL_JSON.
+`
+        },
+        ...messages
+      ]
+    });
+
+    const reply =
+      response.output?.[0]?.content?.[0]?.text ||
+      "Sorry, something went wrong.";
+
+    res.json({ reply });
+
+  } catch (err) {
+    console.error("AI intake error:", err.message);
+    res.status(500).json({ error: "AI failed" });
+  }
+});

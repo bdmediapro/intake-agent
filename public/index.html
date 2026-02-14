@@ -1,172 +1,87 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Remodel Consultation</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Remodeling Consultation</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f3ef;
-      margin: 0;
-      padding: 0;
-    }
-
-    .container {
-      max-width: 600px;
-      margin: 60px auto;
-      background: white;
-      padding: 40px;
-      border-radius: 8px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    }
-
-    h1 {
-      margin-top: 0;
-    }
-
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
-
-    select, input {
-      width: 100%;
-      padding: 12px;
-      margin-top: 5px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-    }
-
-    button {
-      display: block;
-      width: 100%;
-      padding: 14px;
-      margin-top: 25px;
-      font-size: 16px;
-      border-radius: 6px;
-      border: none;
-      background: #2e3d34;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:hover {
-      opacity: 0.9;
-    }
-
-    .success {
-      margin-top: 20px;
-      color: green;
-    }
-
-    .error {
-      margin-top: 20px;
-      color: red;
-    }
+    body { font-family: Arial; background:#f5f3ef; padding:40px; }
+    .chat { max-width:600px; margin:auto; background:white; padding:20px; border-radius:8px; height:500px; overflow-y:auto; }
+    .message { margin-bottom:15px; }
+    .user { text-align:right; color:#2e3d34; }
+    .ai { text-align:left; color:#333; }
+    input { width:100%; padding:10px; margin-top:10px; }
+    button { width:100%; padding:10px; margin-top:10px; background:#2e3d34; color:white; border:none; }
   </style>
 </head>
-
 <body>
 
-<div class="container">
-  <h1>Start Your Remodeling Consultation</h1>
+<h2>AI Project Consultation</h2>
 
-  <label>Project Type</label>
-  <select id="projectType">
-    <option value="Kitchen Remodel">Kitchen Remodel</option>
-    <option value="Bathroom Remodel">Bathroom Remodel</option>
-    <option value="Full Home Remodel">Full Home Remodel</option>
-    <option value="Home Addition">Home Addition</option>
-  </select>
-
-  <label>Budget Range</label>
-  <select id="budget">
-    <option value="LOW">Under $20,000</option>
-    <option value="MID">$20,000 – $50,000</option>
-    <option value="HIGH">$50,000+</option>
-  </select>
-
-  <label>Timeline</label>
-  <select id="timeline">
-    <option value="ASAP">Within 3 Months</option>
-    <option value="SOON">3–6 Months</option>
-    <option value="LATER">6+ Months</option>
-    <option value="EXPLORING">Just Exploring</option>
-  </select>
-
-  <label>Full Name</label>
-  <input id="name" placeholder="Your Name" />
-
-  <label>Email</label>
-  <input id="email" placeholder="Your Email" />
-
-  <label>Phone</label>
-  <input id="phone" placeholder="Phone Number" />
-
-  <label>ZIP Code</label>
-  <input id="zip" placeholder="ZIP Code" />
-
-  <button onclick="submitForm()">Submit</button>
-
-  <div id="message"></div>
-</div>
+<div class="chat" id="chat"></div>
+<input id="input" placeholder="Type your answer..." />
+<button onclick="sendMessage()">Send</button>
 
 <script>
 const urlParams = new URLSearchParams(window.location.search);
 const contractorId = urlParams.get("contractorId");
 
-if (!contractorId) {
-  document.getElementById("message").innerHTML =
-    '<div class="error">Invalid intake link.</div>';
+let messages = [];
+
+function addMessage(text, type) {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "message " + type;
+  div.innerText = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
 }
 
-async function submitForm() {
-  const messageDiv = document.getElementById("message");
-  messageDiv.innerHTML = "Submitting...";
+async function sendMessage() {
+  const input = document.getElementById("input");
+  const text = input.value;
+  if (!text) return;
 
-  const projectType = document.getElementById("projectType").value;
-  const budget = document.getElementById("budget").value;
-  const timeline = document.getElementById("timeline").value;
-  const name = document.getElementById("name").value;
-  const email = document.getElementById("email").value;
-  const phone = document.getElementById("phone").value;
-  const zip = document.getElementById("zip").value;
+  addMessage(text, "user");
+  messages.push({ role: "user", content: text });
+  input.value = "";
 
-  try {
-    const response = await fetch("/complete", {
+  const response = await fetch("/ai-intake", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ messages })
+  });
+
+  const data = await response.json();
+  const reply = data.reply;
+
+  if (reply.startsWith("FINAL_JSON:")) {
+    const jsonText = reply.replace("FINAL_JSON:", "").trim();
+    const structured = JSON.parse(jsonText);
+
+    await fetch("/complete", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
-        projectType,
-        budget,
-        timeline,
-        name,
-        email,
-        phone,
-        zip,
+        projectType: structured.projectType,
+        budget: structured.budgetRange,
+        timeline: structured.timeline,
+        zip: structured.zipCode,
+        name: "AI Intake User",
+        email: "placeholder@email.com",
+        phone: "",
         contractorId
       })
     });
 
-    const result = await response.json();
-
-    if (result.success) {
-      messageDiv.innerHTML =
-        '<div class="success">Thank you! We’ll be in touch soon.</div>';
-    } else {
-      messageDiv.innerHTML =
-        '<div class="error">Submission failed.</div>';
-    }
-
-  } catch (err) {
-    messageDiv.innerHTML =
-      '<div class="error">Server error.</div>';
+    addMessage("Thank you! A contractor will reach out shortly.", "ai");
+    return;
   }
+
+  addMessage(reply, "ai");
+  messages.push({ role: "assistant", content: reply });
 }
+
+addMessage("Hi! What kind of project are you planning?", "ai");
+messages.push({ role: "assistant", content: "Hi! What kind of project are you planning?" });
 </script>
 
 </body>
