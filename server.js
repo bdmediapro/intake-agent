@@ -76,7 +76,7 @@ app.post("/complete", async (req, res) => {
 ============================== */
 app.get("/dashboard", async (req, res) => {
   try {
-    const contractorId = 1; // temp until login system
+    const contractorId = 1; // temporary until login system
 
     const result = await pool.query(
       "SELECT * FROM leads WHERE contractor_id = $1 ORDER BY created_at DESC",
@@ -87,15 +87,15 @@ app.get("/dashboard", async (req, res) => {
 
     let rowsHtml = leads.map(lead => `
       <tr>
-        <td>${lead.created_at.toISOString().slice(0,10)}</td>
-        <td>${lead.project_type}</td>
-        <td>${lead.budget}</td>
-        <td>${lead.timeline}</td>
-        <td>${lead.name}</td>
-        <td>${lead.email}</td>
-        <td>${lead.phone}</td>
-        <td>${lead.zip}</td>
-        <td>${lead.score}</td>
+        <td>${lead.created_at ? lead.created_at.toISOString().slice(0,10) : ''}</td>
+        <td>${lead.project_type || ''}</td>
+        <td>${lead.budget || ''}</td>
+        <td>${lead.timeline || ''}</td>
+        <td>${lead.name || ''}</td>
+        <td>${lead.email || ''}</td>
+        <td>${lead.phone || ''}</td>
+        <td>${lead.zip || ''}</td>
+        <td>${lead.score || 0}</td>
       </tr>
     `).join("");
 
@@ -150,6 +150,8 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log("Server running on port " + PORT);
 
   try {
+
+    /* CONTRACTORS TABLE */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS contractors (
         id SERIAL PRIMARY KEY,
@@ -160,6 +162,7 @@ app.listen(PORT, "0.0.0.0", async () => {
       );
     `);
 
+    /* LEADS TABLE */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS leads (
         id SERIAL PRIMARY KEY,
@@ -172,18 +175,25 @@ app.listen(PORT, "0.0.0.0", async () => {
         zip TEXT,
         score INT,
         summary TEXT,
-        contractor_id INT REFERENCES contractors(id),
+        contractor_id INT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
+    /* ENSURE contractor_id COLUMN EXISTS */
+    await pool.query(`
+      ALTER TABLE leads
+      ADD COLUMN IF NOT EXISTS contractor_id INT REFERENCES contractors(id);
+    `);
+
+    /* SEED DEMO CONTRACTOR */
     await pool.query(`
       INSERT INTO contractors (name, email, password)
       VALUES ('Demo Contractor', 'demo@contractor.com', 'password123')
       ON CONFLICT (email) DO NOTHING;
     `);
 
-    console.log("Database initialized (stateless mode)");
+    console.log("Database initialized (multi-contractor ready)");
 
   } catch (err) {
     console.error("Database init failed:", err.message);
