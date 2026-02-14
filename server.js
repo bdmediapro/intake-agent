@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { Pool } = require("pg");
+const bcrypt = require("bcrypt");
 
 const app = express();
 app.use(express.json());
@@ -16,7 +17,77 @@ const pool = new Pool({
 });
 
 /* ==============================
-   COMPLETE (STATELESS)
+   SIMPLE SESSION STORE
+============================== */
+const sessions = {};
+
+/* ==============================
+   REGISTER CONTRACTOR
+============================== */
+app.post("/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      "INSERT INTO contractors (name, email, password) VALUES ($1,$2,$3) RETURNING id",
+      [name, email, hashedPassword]
+    );
+
+    res.json({
+      success: true,
+      contractorId: result.rows[0].id
+    });
+
+  } catch (err) {
+    console.error("Register error:", err.message);
+    res.status(500).json({ error: "Registration failed" });
+  }
+});
+
+/* ==============================
+   LOGIN
+============================== */
+app.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const result = await pool.query(
+      "SELECT * FROM contractors WHERE email = $1",
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const contractor = result.rows[0];
+
+    const valid = await bcrypt.compare(password, contractor.password);
+
+    if (!valid) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const token = "sess_" + Math.random().toString(36).substring(2);
+
+    sessions[token] = contractor.id;
+
+    res.json({ success: true, token });
+
+  } catch (err) {
+    console.error("Login error:", err.message);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+/* ==============================
+   COMPLETE (STATELESS INTAKE)
 ============================== */
 app.post("/complete", async (req, res) => {
   try {
@@ -61,22 +132,28 @@ app.post("/complete", async (req, res) => {
       ]
     );
 
-    console.log("Lead saved (stateless mode)");
+    console.log("Lead saved");
 
     res.json({ success: true });
 
   } catch (err) {
-    console.error("Complete route error:", err);
+    console.error("Complete route error:", err.message);
     res.status(500).json({ error: "Internal error" });
   }
 });
 
 /* ==============================
-   DASHBOARD (TEMP CONTRACTOR 1)
+   PROTECTED DASHBOARD
 ============================== */
 app.get("/dashboard", async (req, res) => {
   try {
-    const contractorId = 1; // temporary until login system
+    const token = req.headers.authorization;
+
+    if (!token || !sessions[token]) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const contractorId = sessions[token];
 
     const result = await pool.query(
       "SELECT * FROM leads WHERE contractor_id = $1 ORDER BY created_at DESC",
@@ -102,17 +179,16 @@ app.get("/dashboard", async (req, res) => {
     res.send(`
       <html>
       <head>
-        <title>Contractor Dashboard</title>
+        <title>Your Leads</title>
         <style>
           body { font-family: Arial; padding:40px; background:#f5f3ef; }
           table { width:100%; border-collapse:collapse; background:white; }
           th, td { padding:10px; border:1px solid #ddd; font-size:14px; }
           th { background:#2e3d34; color:white; }
-          tr:nth-child(even) { background:#f9f9f9; }
         </style>
       </head>
       <body>
-        <h1>Lead Dashboard</h1>
+        <h1>Your Leads</h1>
         <table>
           <thead>
             <tr>
@@ -136,13 +212,13 @@ app.get("/dashboard", async (req, res) => {
     `);
 
   } catch (err) {
-    console.error("Dashboard error:", err);
+    console.error("Dashboard error:", err.message);
     res.status(500).send("Dashboard failed");
   }
 });
 
 /* ==============================
-   START SERVER
+   START SERVER + DB INIT
 ============================== */
 const PORT = process.env.PORT || 3000;
 
@@ -151,7 +227,6 @@ app.listen(PORT, "0.0.0.0", async () => {
 
   try {
 
-    /* CONTRACTORS TABLE */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS contractors (
         id SERIAL PRIMARY KEY,
@@ -162,7 +237,6 @@ app.listen(PORT, "0.0.0.0", async () => {
       );
     `);
 
-    /* LEADS TABLE */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS leads (
         id SERIAL PRIMARY KEY,
@@ -180,20 +254,12 @@ app.listen(PORT, "0.0.0.0", async () => {
       );
     `);
 
-    /* ENSURE contractor_id COLUMN EXISTS */
     await pool.query(`
       ALTER TABLE leads
       ADD COLUMN IF NOT EXISTS contractor_id INT REFERENCES contractors(id);
     `);
 
-    /* SEED DEMO CONTRACTOR */
-    await pool.query(`
-      INSERT INTO contractors (name, email, password)
-      VALUES ('Demo Contractor', 'demo@contractor.com', 'password123')
-      ON CONFLICT (email) DO NOTHING;
-    `);
-
-    console.log("Database initialized (multi-contractor ready)");
+    console.log("Database ready");
 
   } catch (err) {
     console.error("Database init failed:", err.message);
