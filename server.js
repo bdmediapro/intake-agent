@@ -93,12 +93,9 @@ app.post("/complete", async (req, res) => {
     if (convo.data.timeline === "ASAP") score += 3;
     if (convo.data.timeline === "SOON") score += 2;
 
-    const aiResponse = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: `Project Type: ${convo.projectType}
-Budget: ${convo.data.budget}
-Timeline: ${convo.data.timeline}
-Score: ${score}
+// TEMPORARY: Disable OpenAI
+const summary = "AI temporarily disabled.";
+
 
 Write a short contractor summary with urgency and sales angle.`
     });
