@@ -131,6 +131,12 @@ app.listen(PORT, "0.0.0.0", async () => {
 });
 
 await pool.query(`
+  INSERT INTO contractors (name, email, password)
+  VALUES ('Demo Contractor', 'demo@contractor.com', 'password123')
+  ON CONFLICT (email) DO NOTHING;
+`);
+
+await pool.query(`
   CREATE TABLE IF NOT EXISTS contractors (
     id SERIAL PRIMARY KEY,
     name TEXT,
