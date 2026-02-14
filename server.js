@@ -16,7 +16,7 @@ const openai = new OpenAI({
 });
 
 /* ==============================
-   POSTGRES (Railway)
+   POSTGRES
 ============================== */
 console.log("DATABASE_URL AT START:", process.env.DATABASE_URL);
 
@@ -25,7 +25,7 @@ const pool = new Pool({
 });
 
 /* ==============================
-   EMAIL (Gmail App Password)
+   EMAIL
 ============================== */
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -36,7 +36,7 @@ const transporter = nodemailer.createTransport({
 });
 
 /* ==============================
-   SESSION STORE
+   MEMORY STORE
 ============================== */
 let conversations = {};
 
@@ -48,7 +48,7 @@ app.get("/health", (req, res) => {
 });
 
 /* ==============================
-   TEST OPENAI
+   TEST AI
 ============================== */
 app.get("/test-ai", async (req, res) => {
   try {
@@ -77,7 +77,7 @@ app.get("/test-ai", async (req, res) => {
 });
 
 /* ==============================
-   ROOT (INTAKE UI)
+   ROOT (UI)
 ============================== */
 app.get("/", (req, res) => {
   res.send(`
@@ -145,7 +145,7 @@ app.get("/", (req, res) => {
 let sessionId = "session-" + Math.random();
 
 function selectProject(project) {
-  fetch("/start", {
+  fetch(window.location.origin + "/start", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({ sessionId, projectType:project })
@@ -155,7 +155,7 @@ function selectProject(project) {
 }
 
 function selectBudget(budget) {
-  fetch("/chat", {
+  fetch(window.location.origin + "/chat", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({ sessionId, message:budget })
@@ -165,7 +165,7 @@ function selectBudget(budget) {
 }
 
 function selectTimeline(timeline) {
-  fetch("/chat", {
+  fetch(window.location.origin + "/chat", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({ sessionId, message:timeline })
@@ -180,14 +180,26 @@ function submitContact() {
   const phone = document.getElementById("phone").value;
   const zip = document.getElementById("zip").value;
 
-  fetch("/complete", {
+  fetch(window.location.origin + "/complete", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body:JSON.stringify({ sessionId, name, email, phone, zip })
-  });
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log("Complete response:", data);
 
-  document.getElementById("step4").classList.add("hidden");
-  document.getElementById("complete").classList.remove("hidden");
+    if (data.success) {
+      document.getElementById("step4").classList.add("hidden");
+      document.getElementById("complete").classList.remove("hidden");
+    } else {
+      alert("Submission failed.");
+    }
+  })
+  .catch(err => {
+    console.error("Submission error:", err);
+    alert("There was an error submitting.");
+  });
 }
 </script>
 </body>
@@ -196,7 +208,7 @@ function submitContact() {
 });
 
 /* ==============================
-   START SESSION
+   START
 ============================== */
 app.post("/start", (req, res) => {
   const { sessionId, projectType } = req.body;
@@ -222,13 +234,9 @@ app.post("/chat", (req, res) => {
   if (convo.state === "ASK_BUDGET") {
     convo.data.budget = message;
     convo.state = "ASK_TIMELINE";
-    return res.json({ success: true });
-  }
-
-  if (convo.state === "ASK_TIMELINE") {
+  } else if (convo.state === "ASK_TIMELINE") {
     convo.data.timeline = message;
     convo.state = "COLLECT_CONTACT";
-    return res.json({ success: true });
   }
 
   res.json({ success: true });
@@ -240,8 +248,10 @@ app.post("/chat", (req, res) => {
 app.post("/complete", async (req, res) => {
   try {
     const { sessionId, name, email, phone, zip } = req.body;
-    const convo = conversations[sessionId];
 
+    console.log("COMPLETE endpoint hit:", sessionId);
+
+    const convo = conversations[sessionId];
     if (!convo) return res.status(400).json({ error: "No session found" });
 
     convo.data.name = name;
@@ -255,42 +265,30 @@ app.post("/complete", async (req, res) => {
     if (convo.data.timeline === "ASAP") score += 3;
     if (convo.data.timeline === "SOON") score += 2;
 
-    convo.data.score = score;
-
     let summary = "Summary unavailable";
 
     try {
       const aiResponse = await openai.responses.create({
         model: "gpt-4.1-mini",
-        input: `
-Generate a short contractor summary:
+        input: \`
+Project Type: \${convo.projectType}
+Budget: \${convo.data.budget}
+Timeline: \${convo.data.timeline}
+Score: \${score}
 
-Project Type: ${convo.projectType}
-Budget: ${convo.data.budget}
-Timeline: ${convo.data.timeline}
-Score: ${score}
-
-Include overview, urgency, and suggested sales angle.
-        `,
+Write a short contractor summary with urgency and sales angle.
+\`,
       });
 
-      if (
-        aiResponse.output &&
-        aiResponse.output[0] &&
-        aiResponse.output[0].content &&
-        aiResponse.output[0].content[0]
-      ) {
-        summary = aiResponse.output[0].content[0].text.trim();
-      }
-
+      summary = aiResponse.output[0].content[0].text.trim();
     } catch (aiErr) {
       console.error("OpenAI summary error:", aiErr);
     }
 
     await pool.query(
-      `INSERT INTO leads 
+      \`INSERT INTO leads 
       (project_type, budget, timeline, name, email, phone, zip, score, summary)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)\`,
       [
         convo.projectType,
         convo.data.budget,
@@ -308,15 +306,15 @@ Include overview, urgency, and suggested sales angle.
       from: process.env.EMAIL_USER,
       to: process.env.CONTRACTOR_EMAIL,
       subject: "New Qualified Remodel Lead",
-      text: `
-Name: ${name}
-Email: ${email}
-Phone: ${phone}
-ZIP: ${zip}
-Score: ${score}
+      text: \`
+Name: \${name}
+Email: \${email}
+Phone: \${phone}
+ZIP: \${zip}
+Score: \${score}
 
-${summary}
-      `,
+\${summary}
+\`,
     });
 
     res.json({ success: true });
@@ -336,7 +334,7 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log("Server running on port " + PORT);
 
   try {
-    await pool.query(`
+    await pool.query(\`
       CREATE TABLE IF NOT EXISTS leads (
         id SERIAL PRIMARY KEY,
         project_type TEXT,
@@ -350,7 +348,7 @@ app.listen(PORT, "0.0.0.0", async () => {
         summary TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
+    \`);
     console.log("Database initialized");
   } catch (err) {
     console.error("Database connection failed:", err.message);
