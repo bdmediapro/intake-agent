@@ -5,188 +5,168 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
-      font-family: Arial;
-      background:#f5f3ef;
-      margin:0;
-      padding:0;
+      font-family: Arial, sans-serif;
+      background: #f5f3ef;
+      margin: 0;
+      padding: 0;
     }
 
     .container {
-      max-width:600px;
-      margin:60px auto;
-      background:white;
-      padding:40px;
-      border-radius:8px;
-      box-shadow:0 10px 30px rgba(0,0,0,0.08);
+      max-width: 600px;
+      margin: 60px auto;
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
 
-    h1 { margin-top:0; }
-    p { color:#555; }
+    h1 {
+      margin-top: 0;
+    }
 
-    .step { margin-top:30px; }
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
 
     button {
-      display:block;
-      width:100%;
-      padding:14px;
-      margin:10px 0;
-      font-size:16px;
-      border-radius:6px;
-      border:none;
-      background:#2e3d34;
-      color:white;
-      cursor:pointer;
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin-top: 25px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+      background: #2e3d34;
+      color: white;
+      cursor: pointer;
     }
 
-    button:hover { opacity:0.9; }
-
-    input {
-      width:100%;
-      padding:12px;
-      margin:8px 0;
-      border-radius:6px;
-      border:1px solid #ccc;
+    button:hover {
+      opacity: 0.9;
     }
 
-    .hidden { display:none; }
+    .success {
+      margin-top: 20px;
+      color: green;
+    }
 
-    .loading {
-      opacity:0.6;
-      pointer-events:none;
+    .error {
+      margin-top: 20px;
+      color: red;
     }
   </style>
 </head>
+
 <body>
 
 <div class="container">
-
   <h1>Start Your Remodeling Consultation</h1>
-  <p>We’ll ask a few quick questions to understand your project.</p>
 
-  <!-- STEP 1 -->
-  <div id="step1" class="step">
-    <h3>What type of project are you planning?</h3>
-    <button onclick="selectProject('Kitchen Remodel')">Kitchen Remodel</button>
-    <button onclick="selectProject('Bathroom Remodel')">Bathroom Remodel</button>
-    <button onclick="selectProject('Full Home Remodel')">Full Home Remodel</button>
-    <button onclick="selectProject('Home Addition')">Home Addition</button>
-  </div>
+  <label>Project Type</label>
+  <select id="projectType">
+    <option value="Kitchen Remodel">Kitchen Remodel</option>
+    <option value="Bathroom Remodel">Bathroom Remodel</option>
+    <option value="Full Home Remodel">Full Home Remodel</option>
+    <option value="Home Addition">Home Addition</option>
+  </select>
 
-  <!-- STEP 2 -->
-  <div id="step2" class="step hidden">
-    <h3>What budget range are you considering?</h3>
-    <button onclick="selectBudget('LOW')">Under $20,000</button>
-    <button onclick="selectBudget('MID')">$20,000 – $50,000</button>
-    <button onclick="selectBudget('HIGH')">$50,000+</button>
-  </div>
+  <label>Budget Range</label>
+  <select id="budget">
+    <option value="LOW">Under $20,000</option>
+    <option value="MID">$20,000 – $50,000</option>
+    <option value="HIGH">$50,000+</option>
+  </select>
 
-  <!-- STEP 3 -->
-  <div id="step3" class="step hidden">
-    <h3>When are you hoping to start?</h3>
-    <button onclick="selectTimeline('ASAP')">Within 3 Months</button>
-    <button onclick="selectTimeline('SOON')">3–6 Months</button>
-    <button onclick="selectTimeline('LATER')">6+ Months</button>
-    <button onclick="selectTimeline('EXPLORING')">Just Exploring</button>
-  </div>
+  <label>Timeline</label>
+  <select id="timeline">
+    <option value="ASAP">Within 3 Months</option>
+    <option value="SOON">3–6 Months</option>
+    <option value="LATER">6+ Months</option>
+    <option value="EXPLORING">Just Exploring</option>
+  </select>
 
-  <!-- STEP 4 -->
-  <div id="step4" class="step hidden">
-    <h3>Where should we send next steps?</h3>
-    <input id="name" placeholder="Full Name" required />
-    <input id="email" placeholder="Email Address" required />
-    <input id="phone" placeholder="Phone Number" />
-    <input id="zip" placeholder="ZIP Code" />
-    <button id="submitBtn" onclick="submitContact()">Submit</button>
-  </div>
+  <label>Full Name</label>
+  <input id="name" placeholder="Your Name" />
 
-  <!-- COMPLETE -->
-  <div id="complete" class="step hidden">
-    <h3>Thank you.</h3>
-    <p>Our team will review your project and reach out shortly.</p>
-  </div>
+  <label>Email</label>
+  <input id="email" placeholder="Your Email" />
 
+  <label>Phone</label>
+  <input id="phone" placeholder="Phone Number" />
+
+  <label>ZIP Code</label>
+  <input id="zip" placeholder="ZIP Code" />
+
+  <button onclick="submitForm()">Submit</button>
+
+  <div id="message"></div>
 </div>
 
 <script>
+const urlParams = new URLSearchParams(window.location.search);
+const contractorId = urlParams.get("contractorId");
 
-/* ==============================
-   STATE (FRONTEND ONLY)
-============================== */
-
-let projectType = "";
-let budget = "";
-let timeline = "";
-const contractorId = 1; // Temporary until login system
-
-/* ==============================
-   STEP FUNCTIONS
-============================== */
-
-function selectProject(project) {
-  projectType = project;
-  document.getElementById("step1").classList.add("hidden");
-  document.getElementById("step2").classList.remove("hidden");
+if (!contractorId) {
+  document.getElementById("message").innerHTML =
+    '<div class="error">Invalid intake link.</div>';
 }
 
-function selectBudget(b) {
-  budget = b;
-  document.getElementById("step2").classList.add("hidden");
-  document.getElementById("step3").classList.remove("hidden");
-}
+async function submitForm() {
+  const messageDiv = document.getElementById("message");
+  messageDiv.innerHTML = "Submitting...";
 
-function selectTimeline(t) {
-  timeline = t;
-  document.getElementById("step3").classList.add("hidden");
-  document.getElementById("step4").classList.remove("hidden");
-}
+  const projectType = document.getElementById("projectType").value;
+  const budget = document.getElementById("budget").value;
+  const timeline = document.getElementById("timeline").value;
+  const name = document.getElementById("name").value;
+  const email = document.getElementById("email").value;
+  const phone = document.getElementById("phone").value;
+  const zip = document.getElementById("zip").value;
 
-/* ==============================
-   SUBMIT
-============================== */
+  try {
+    const response = await fetch("/complete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        projectType,
+        budget,
+        timeline,
+        name,
+        email,
+        phone,
+        zip,
+        contractorId
+      })
+    });
 
-function submitContact() {
+    const result = await response.json();
 
-  const name = document.getElementById("name").value.trim();
-  const email = document.getElementById("email").value.trim();
-  const phone = document.getElementById("phone").value.trim();
-  const zip = document.getElementById("zip").value.trim();
+    if (result.success) {
+      messageDiv.innerHTML =
+        '<div class="success">Thank you! We’ll be in touch soon.</div>';
+    } else {
+      messageDiv.innerHTML =
+        '<div class="error">Submission failed.</div>';
+    }
 
-  if (!name || !email) {
-    alert("Please enter your name and email.");
-    return;
+  } catch (err) {
+    messageDiv.innerHTML =
+      '<div class="error">Server error.</div>';
   }
-
-  const btn = document.getElementById("submitBtn");
-  btn.innerText = "Submitting...";
-  btn.classList.add("loading");
-
-  fetch("/complete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      projectType,
-      budget,
-      timeline,
-      name,
-      email,
-      phone,
-      zip,
-      contractorId
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById("step4").classList.add("hidden");
-    document.getElementById("complete").classList.remove("hidden");
-  })
-  .catch(err => {
-    alert("Something went wrong. Please try again.");
-    btn.innerText = "Submit";
-    btn.classList.remove("loading");
-  });
-
 }
-
 </script>
 
 </body>
