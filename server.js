@@ -129,3 +129,69 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Database connection failed:", err.message);
   }
 });
+/* ==============================
+   DASHBOARD
+============================== */
+app.get("/dashboard", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM leads ORDER BY created_at DESC"
+    );
+
+    const leads = result.rows;
+
+    let rowsHtml = leads.map(lead => `
+      <tr>
+        <td>${lead.created_at.toISOString().slice(0,10)}</td>
+        <td>${lead.project_type}</td>
+        <td>${lead.budget}</td>
+        <td>${lead.timeline}</td>
+        <td>${lead.name}</td>
+        <td>${lead.email}</td>
+        <td>${lead.phone}</td>
+        <td>${lead.zip}</td>
+        <td>${lead.score}</td>
+      </tr>
+    `).join("");
+
+    res.send(`
+      <html>
+      <head>
+        <title>Contractor Dashboard</title>
+        <style>
+          body { font-family: Arial; padding:40px; background:#f5f3ef; }
+          table { width:100%; border-collapse:collapse; background:white; }
+          th, td { padding:10px; border:1px solid #ddd; font-size:14px; }
+          th { background:#2e3d34; color:white; }
+          tr:nth-child(even) { background:#f9f9f9; }
+        </style>
+      </head>
+      <body>
+        <h1>Lead Dashboard</h1>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Project</th>
+              <th>Budget</th>
+              <th>Timeline</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>ZIP</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `);
+
+  } catch (err) {
+    console.error("Dashboard error:", err);
+    res.status(500).send("Dashboard failed");
+  }
+});
