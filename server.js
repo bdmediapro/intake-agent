@@ -75,21 +75,23 @@ app.post("/complete", async (req, res) => {
     if (convo.data.timeline === "SOON") score += 2;
 
     const summary = "AI disabled for now.";
+     
+await pool.query(
+  "INSERT INTO leads (project_type, budget, timeline, name, email, phone, zip, score, summary, contractor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+  [
+    convo.projectType,
+    convo.data.budget,
+    convo.data.timeline,
+    name,
+    email,
+    phone,
+    zip,
+    score,
+    summary,
+    convo.contractorId
+  ]
+);
 
-    await pool.query(
-      "INSERT INTO leads (project_type, budget, timeline, name, email, phone, zip, score, summary) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-      [
-        convo.projectType,
-        convo.data.budget,
-        convo.data.timeline,
-        name,
-        email,
-        phone,
-        zip,
-        score,
-        summary,
-      ]
-    );
 
     console.log("Lead saved to database");
 
