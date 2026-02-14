@@ -12,57 +12,162 @@ const openai = new OpenAI({
 
 let conversations = {};
 
-// Health route
+// ==============================
+// HEALTH CHECK
+// ==============================
 app.get("/health", function (req, res) {
   res.status(200).send("OK");
 });
 
-// Simple Web UI (no template literals)
+// ==============================
+// CONTRACTOR-STYLE UI
+// ==============================
 app.get("/", function (req, res) {
-  res.send(
-    '<!DOCTYPE html>' +
-    '<html>' +
-    '<head><title>Remodel Intake Agent</title></head>' +
-    '<body style="font-family:Arial;max-width:600px;margin:40px auto;">' +
-    '<h2>Remodel Intake Agent</h2>' +
-    '<div id="chat" style="margin-bottom:20px;"></div>' +
-    '<input id="input" style="width:80%;" placeholder="Type your message..." />' +
-    '<button onclick="send()">Send</button>' +
-    '<script>' +
-    'let sessionId = "session-" + Math.random();' +
-    'let started = false;' +
-    'async function send() {' +
-    '  const input = document.getElementById("input");' +
-    '  const message = input.value;' +
-    '  input.value = "";' +
-    '  const chat = document.getElementById("chat");' +
-    '  chat.innerHTML += "<div><b>You:</b> " + message + "</div>";' +
-    '  let url = started ? "/chat" : "/start";' +
-    '  let body = started ? { sessionId: sessionId, message: message } : { sessionId: sessionId, name: message, projectType: "Kitchen Remodel" };' +
-    '  const res = await fetch(url, {' +
-    '    method: "POST",' +
-    '    headers: { "Content-Type": "application/json" },' +
-    '    body: JSON.stringify(body)' +
-    '  });' +
-    '  const data = await res.json();' +
-    '  chat.innerHTML += "<div><b>Agent:</b> " + data.message + "</div>";' +
-    '  started = true;' +
-    '}' +
-    '</script>' +
-    '</body>' +
-    '</html>'
-  );
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Remodel Consultation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f3ef;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 60px auto;
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 28px;
+    }
+    p {
+      color: #555;
+    }
+    .step {
+      margin-top: 30px;
+    }
+    button {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+      background: #2e3d34;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Start Your Remodeling Consultation</h1>
+    <p>We’ll ask a few quick questions to understand your project and see if we’re a good fit.</p>
+
+    <div id="step1" class="step">
+      <h3>What type of project are you planning?</h3>
+      <button onclick="selectProject('Kitchen Remodel')">Kitchen Remodel</button>
+      <button onclick="selectProject('Bathroom Remodel')">Bathroom Remodel</button>
+      <button onclick="selectProject('Full Home Remodel')">Full Home Remodel</button>
+      <button onclick="selectProject('Home Addition')">Home Addition</button>
+    </div>
+
+    <div id="step2" class="step hidden">
+      <h3>What budget range are you considering?</h3>
+      <button onclick="selectBudget('LOW')">Under $20,000</button>
+      <button onclick="selectBudget('MID')">$20,000 – $50,000</button>
+      <button onclick="selectBudget('HIGH')">$50,000+</button>
+    </div>
+
+    <div id="step3" class="step hidden">
+      <h3>When are you hoping to start?</h3>
+      <button onclick="selectTimeline('ASAP')">Within 3 Months</button>
+      <button onclick="selectTimeline('SOON')">3–6 Months</button>
+      <button onclick="selectTimeline('LATER')">6+ Months</button>
+      <button onclick="selectTimeline('EXPLORING')">Just Exploring</button>
+    </div>
+
+    <div id="complete" class="step hidden">
+      <h3>Thank you.</h3>
+      <p>Our team will review your project details and reach out shortly to discuss next steps.</p>
+    </div>
+  </div>
+
+  <script>
+    let sessionId = "session-" + Math.random();
+
+    function selectProject(project) {
+      fetch("/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          name: "Website Visitor",
+          projectType: project
+        })
+      });
+
+      document.getElementById("step1").classList.add("hidden");
+      document.getElementById("step2").classList.remove("hidden");
+    }
+
+    function selectBudget(budget) {
+      fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          message: budget
+        })
+      });
+
+      document.getElementById("step2").classList.add("hidden");
+      document.getElementById("step3").classList.remove("hidden");
+    }
+
+    function selectTimeline(timeline) {
+      fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          message: timeline
+        })
+      });
+
+      document.getElementById("step3").classList.add("hidden");
+      document.getElementById("complete").classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>
+  `);
 });
 
-// Start conversation
+// ==============================
+// START SESSION
+// ==============================
 app.post("/start", function (req, res) {
-  const sessionId = req.body.sessionId;
-  const name = req.body.name;
-  const projectType = req.body.projectType;
+  const { sessionId, name, projectType } = req.body;
 
   conversations[sessionId] = {
-    name: name,
-    projectType: projectType,
+    name,
+    projectType,
     state: "ASK_BUDGET",
     data: {},
   };
@@ -77,10 +182,11 @@ app.post("/start", function (req, res) {
   });
 });
 
-// Chat handler
+// ==============================
+// CHAT HANDLER
+// ==============================
 app.post("/chat", async function (req, res) {
-  const sessionId = req.body.sessionId;
-  const message = req.body.message;
+  const { sessionId, message } = req.body;
   const convo = conversations[sessionId];
 
   if (!convo) {
@@ -88,20 +194,39 @@ app.post("/chat", async function (req, res) {
   }
 
   if (convo.state === "ASK_BUDGET") {
-    const aiResponse = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input:
-        'Extract a budget category from this message:\n"' +
-        message +
-        '"\n\nReturn one word:\nLOW (under 20k)\nMID (20k-50k)\nHIGH (50k+)\nUNKNOWN',
-    });
+    try {
+      const aiResponse = await openai.responses.create({
+        model: "gpt-4.1-mini",
+        input:
+          'Extract a budget category from this message:\n"' +
+          message +
+          '"\n\nReturn one word:\nLOW (under 20k)\nMID (20k-50k)\nHIGH (50k+)\nUNKNOWN',
+      });
 
-    convo.data.budget = aiResponse.output_text.trim();
-    convo.state = "ASK_TIMELINE";
+      let budgetCategory = "UNKNOWN";
 
-    return res.json({
-      message: "Thanks. When are you hoping to start the project?",
-    });
+      if (
+        aiResponse.output &&
+        aiResponse.output[0] &&
+        aiResponse.output[0].content &&
+        aiResponse.output[0].content[0]
+      ) {
+        budgetCategory = aiResponse.output[0].content[0].text.trim();
+      }
+
+      convo.data.budget = budgetCategory;
+      convo.state = "ASK_TIMELINE";
+
+      return res.json({
+        message: "Thanks. When are you hoping to start the project?",
+      });
+    } catch (err) {
+      console.error("OpenAI error:", err);
+      return res.json({
+        message:
+          "Sorry, there was an issue processing your response. Please try again.",
+      });
+    }
   }
 
   if (convo.state === "ASK_TIMELINE") {
@@ -109,7 +234,8 @@ app.post("/chat", async function (req, res) {
     convo.state = "DONE";
 
     return res.json({
-      message: "Great. A team member will reach out shortly.",
+      message:
+        "Great. A team member will review your project details and reach out shortly.",
       summary: convo.data,
     });
   }
@@ -117,6 +243,9 @@ app.post("/chat", async function (req, res) {
   res.json({ message: "Conversation complete." });
 });
 
+// ==============================
+// START SERVER
+// ==============================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", function () {
