@@ -1,12 +1,26 @@
 require("dotenv").config();
+
 const express = require("express");
-const { Pool } = require("pg");
 const bcrypt = require("bcrypt");
+const { Pool } = require("pg");
+const nodemailer = require("nodemailer");
 const OpenAI = require("openai");
 
 const app = express();
 app.use(express.json());
 app.use(express.static("public"));
+
+/* ==============================
+   ENV CHECK
+============================== */
+console.log("DATABASE_URL:", process.env.DATABASE_URL);
+
+/* ==============================
+   DATABASE
+============================== */
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 /* ==============================
    OPENAI
@@ -16,12 +30,14 @@ const openai = new OpenAI({
 });
 
 /* ==============================
-   DATABASE
+   EMAIL
 ============================== */
-console.log("DATABASE_URL:", process.env.DATABASE_URL);
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
 /* ==============================
@@ -34,18 +50,22 @@ const sessions = {};
 ============================== */
 app.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { email, password } = req.body;
+
+    if (!email || !password)
+      return res.status(400).json({ error: "Email and password required" });
 
     const hashed = await bcrypt.hash(password, 10);
 
-    const result = await pool.query(
-      "INSERT INTO contractors (name, email, password) VALUES ($1,$2,$3) RETURNING id",
-      [name, email, hashed]
+    await pool.query(
+      "INSERT INTO contractors (email, password) VALUES ($1,$2)",
+      [email, hashed]
     );
 
-    res.json({ success: true, contractorId: result.rows[0].id });
+    res.json({ success: true });
+
   } catch (err) {
-    console.error(err.message);
+    console.error("Register error:", err.message);
     res.status(500).json({ error: "Register failed" });
   }
 });
@@ -75,14 +95,15 @@ app.post("/login", async (req, res) => {
     sessions[token] = contractor.id;
 
     res.json({ success: true, token });
+
   } catch (err) {
-    console.error(err.message);
+    console.error("Login error:", err.message);
     res.status(500).json({ error: "Login failed" });
   }
 });
 
 /* ==============================
-   AI INTAKE (HYBRID)
+   AI INTAKE
 ============================== */
 app.post("/ai-intake", async (req, res) => {
   try {
@@ -107,9 +128,7 @@ Collect:
 
 Ask one question at a time.
 
-Only request contact info after project details.
-
-When finished, respond ONLY with:
+When complete, respond ONLY with:
 
 FINAL_JSON:
 {
@@ -134,7 +153,7 @@ FINAL_JSON:
     res.json({ reply });
 
   } catch (err) {
-    console.error(err.message);
+    console.error("AI error:", err.message);
     res.status(500).json({ error: "AI failed" });
   }
 });
@@ -168,14 +187,11 @@ app.post("/complete", async (req, res) => {
       const aiResponse = await openai.responses.create({
         model: "gpt-4.1-mini",
         input: `
-You are an AI sales assistant helping a contractor evaluate a remodeling lead.
-
-Provide:
-1. Lead Quality Analysis
-2. Urgency Level
-3. Estimated Project Value Tier
-4. Psychological Sales Angle
-5. Suggested First Call Strategy
+Analyze this remodeling lead and provide:
+1. Lead Quality
+2. Urgency
+3. Estimated Value Tier
+4. Sales Strategy
 
 Project: ${projectType}
 Budget: ${budget}
@@ -189,14 +205,15 @@ Transcript: ${transcript}
         aiResponse.output?.[0]?.content?.[0]?.text || summary;
 
     } catch (err) {
-      console.error("Summary error:", err.message);
+      console.error("AI summary error:", err.message);
     }
 
     await pool.query(
       `INSERT INTO leads 
-      (project_type, budget, timeline, name, email, phone, zip, score, summary, contractor_id, transcript)
+      (contractor_id, project_type, budget, timeline, name, email, phone, zip, score, summary, transcript)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
+        contractorId,
         projectType,
         budget,
         timeline,
@@ -206,15 +223,53 @@ Transcript: ${transcript}
         zip,
         score,
         summary,
-        contractorId,
         transcript
       ]
     );
 
+    // Email Alert
+    const contractorResult = await pool.query(
+      "SELECT email FROM contractors WHERE id=$1",
+      [contractorId]
+    );
+
+    const contractorEmail = contractorResult.rows[0]?.email;
+
+    let subject = "New Lead";
+    if (score >= 5) subject = "🔥 High-Intent Lead";
+    else if (score >= 3) subject = "🟡 Warm Lead";
+
+    if (contractorEmail) {
+      try {
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: contractorEmail,
+          subject,
+          text: `
+New Lead Received
+
+Project: ${projectType}
+Budget: ${budget}
+Timeline: ${timeline}
+
+Name: ${name}
+Email: ${email}
+Phone: ${phone}
+
+AI Analysis:
+${summary}
+`
+        });
+        console.log("Email sent");
+      } catch (err) {
+        console.error("Email error:", err.message);
+      }
+    }
+
     res.json({ success: true });
 
   } catch (err) {
-    console.error(err.message);
+    console.error("Complete error:", err.message);
     res.status(500).json({ error: "Complete failed" });
   }
 });
@@ -242,45 +297,49 @@ app.get("/dashboard-data", async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err.message);
+    console.error("Dashboard error:", err.message);
     res.status(500).json({ error: "Dashboard failed" });
   }
 });
 
 /* ==============================
-   SERVER + DB INIT
+   SERVER START
 ============================== */
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", async () => {
-  console.log("Server running on port", PORT);
+  console.log("Server running on port " + PORT);
 
   try {
-  await pool.query(`
-  CREATE TABLE IF NOT EXISTS leads (
-    id SERIAL PRIMARY KEY,
-    project_type TEXT,
-    budget TEXT,
-    timeline TEXT,
-    name TEXT,
-    email TEXT,
-    phone TEXT,
-    zip TEXT,
-    score INT,
-    summary TEXT,
-    contractor_id INT,
-    transcript TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
-`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contractors (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-await pool.query(`
-  ALTER TABLE leads
-  ADD COLUMN IF NOT EXISTS transcript TEXT;
-`);
-
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id SERIAL PRIMARY KEY,
+        contractor_id INT,
+        project_type TEXT,
+        budget TEXT,
+        timeline TEXT,
+        name TEXT,
+        email TEXT,
+        phone TEXT,
+        zip TEXT,
+        score INT,
+        summary TEXT,
+        transcript TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     console.log("Database ready");
+
   } catch (err) {
     console.error("DB init error:", err.message);
   }
