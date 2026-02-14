@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Contractor Login</title>
+  <style>
+    body { font-family: Arial; background:#f5f3ef; padding:40px; }
+    .box { max-width:400px; margin:auto; background:white; padding:30px; border-radius:8px; }
+    input { width:100%; padding:10px; margin-top:10px; }
+    button { width:100%; padding:10px; margin-top:20px; background:#2e3d34; color:white; border:none; }
+  </style>
+</head>
+<body>
+
+<div class="box">
+  <h2>Login</h2>
+  <input id="email" placeholder="Email" />
+  <input id="password" type="password" placeholder="Password" />
+  <button onclick="login()">Login</button>
+</div>
+
+<script>
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  const response = await fetch("/login", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ email, password })
+  });
+
+  const result = await response.json();
+
+  if (result.success) {
+    localStorage.setItem("token", result.token);
+    window.location.href = "/dashboard.html";
+  } else {
+    alert("Login failed");
+  }
+}
+</script>
+
+</body>
+</html>

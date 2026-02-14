@@ -265,3 +265,29 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.error("Database init failed:", err.message);
   }
 });
+
+app.get("/dashboard-data", async (req, res) => {
+  try {
+    const token = req.headers.authorization;
+
+    if (!token || !sessions[token]) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const contractorId = sessions[token];
+
+    const result = await pool.query(
+      "SELECT * FROM leads WHERE contractor_id = $1 ORDER BY created_at DESC",
+      [contractorId]
+    );
+
+    res.json({
+      contractorId,
+      leads: result.rows
+    });
+
+  } catch (err) {
+    console.error("Dashboard data error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});

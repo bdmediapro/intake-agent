@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <style>
+    body { font-family: Arial; padding:40px; background:#f5f3ef; }
+    table { width:100%; border-collapse:collapse; background:white; }
+    th, td { padding:10px; border:1px solid #ddd; }
+    th { background:#2e3d34; color:white; }
+  </style>
+</head>
+<body>
+
+<h1>Your Leads</h1>
+
+<div id="intakeLink"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Project</th>
+      <th>Budget</th>
+      <th>Name</th>
+    </tr>
+  </thead>
+  <tbody id="leadTable"></tbody>
+</table>
+
+<script>
+async function loadDashboard() {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  const response = await fetch("/dashboard-data", {
+    headers: {
+      "Authorization": token
+    }
+  });
+
+  if (response.status === 401) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  const data = await response.json();
+
+  const intakeLink = 
+    window.location.origin + "/?contractorId=" + data.contractorId;
+
+  document.getElementById("intakeLink").innerHTML =
+    "<p><strong>Your Intake Link:</strong> " + intakeLink + "</p>";
+
+  const table = document.getElementById("leadTable");
+
+  data.leads.forEach(lead => {
+    table.innerHTML += `
+      <tr>
+        <td>${new Date(lead.created_at).toLocaleDateString()}</td>
+        <td>${lead.project_type}</td>
+        <td>${lead.budget}</td>
+        <td>${lead.name}</td>
+      </tr>
+    `;
+  });
+}
+
+loadDashboard();
+</script>
+
+</body>
+</html>
