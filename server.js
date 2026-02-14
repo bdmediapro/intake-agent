@@ -1,3 +1,4 @@
+console.log("DATABASE_URL AT START:", process.env.DATABASE_URL);
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
