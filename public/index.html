@@ -57,20 +57,21 @@ async function sendMessage() {
     const jsonText = reply.replace("FINAL_JSON:", "").trim();
     const structured = JSON.parse(jsonText);
 
-    await fetch("/complete", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        projectType: structured.projectType,
-        budget: structured.budgetRange,
-        timeline: structured.timeline,
-        zip: structured.zipCode,
-        name: "AI Intake User",
-        email: "placeholder@email.com",
-        phone: "",
-        contractorId
-      })
-    });
+   await fetch("/complete", {
+  method: "POST",
+  headers: {"Content-Type":"application/json"},
+  body: JSON.stringify({
+    projectType: structured.projectType,
+    budget: structured.budgetRange,
+    timeline: structured.timeline,
+    zip: structured.zipCode,
+    name: structured.fullName,
+    email: structured.email,
+    phone: structured.phoneNumber,
+    contractorId
+  })
+});
+
 
     addMessage("Thank you! A contractor will reach out shortly.", "ai");
     return;
