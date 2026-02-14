@@ -130,6 +130,22 @@ app.listen(PORT, "0.0.0.0", async () => {
   }
 });
 
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS contractors (
+    id SERIAL PRIMARY KEY,
+    name TEXT,
+    email TEXT UNIQUE,
+    password TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+await pool.query(`
+  ALTER TABLE leads
+  ADD COLUMN IF NOT EXISTS contractor_id INT REFERENCES contractors(id);
+`);
+
+
 /* ==============================
    BASIC AUTH MIDDLEWARE
 ============================== */
