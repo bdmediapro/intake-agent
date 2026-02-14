@@ -24,17 +24,18 @@ let conversations = {};
    START SESSION
 ============================== */
 app.post("/start", (req, res) => {
-  const { sessionId, projectType } = req.body;
+  const { sessionId, projectType, contractorId } = req.body;
 
   conversations[sessionId] = {
     projectType,
+    contractorId,
     state: "ASK_BUDGET",
     data: {},
   };
 
-  console.log("Session started:", sessionId);
   res.json({ success: true });
 });
+
 
 /* ==============================
    CHAT
