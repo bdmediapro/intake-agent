@@ -1,28 +1,106 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>AI Remodeling Consultation</title>
+  <title>AI Project Consultation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Arial; background:#f5f3ef; padding:40px; }
-    .chat { max-width:600px; margin:auto; background:white; padding:20px; border-radius:8px; height:500px; overflow-y:auto; }
-    .message { margin-bottom:15px; }
-    .user { text-align:right; color:#2e3d34; }
-    .ai { text-align:left; color:#333; }
-    input { width:100%; padding:10px; margin-top:10px; }
-    button { width:100%; padding:10px; margin-top:10px; background:#2e3d34; color:white; border:none; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f3ef;
+      margin: 0;
+      padding: 40px;
+    }
+
+    h2 {
+      text-align: center;
+    }
+
+    .chat {
+      max-width: 700px;
+      margin: 20px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      height: 500px;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+
+    .message {
+      margin-bottom: 15px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      max-width: 80%;
+    }
+
+    .ai {
+      background: #e8ecea;
+      color: #333;
+    }
+
+    .user {
+      background: #2e3d34;
+      color: white;
+      margin-left: auto;
+    }
+
+    .input-area {
+      max-width: 700px;
+      margin: 20px auto;
+      display: flex;
+      gap: 10px;
+    }
+
+    input {
+      flex: 1;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: #2e3d34;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .complete {
+      text-align: center;
+      margin-top: 20px;
+      font-weight: bold;
+      color: green;
+    }
   </style>
 </head>
+
 <body>
 
-<h2>AI Project Consultation</h2>
+<h2>AI Remodeling Consultation</h2>
 
 <div class="chat" id="chat"></div>
-<input id="input" placeholder="Type your answer..." />
-<button onclick="sendMessage()">Send</button>
+
+<div class="input-area">
+  <input id="input" placeholder="Type your answer..." />
+  <button onclick="sendMessage()">Send</button>
+</div>
+
+<div id="completeMessage" class="complete"></div>
 
 <script>
 const urlParams = new URLSearchParams(window.location.search);
 const contractorId = urlParams.get("contractorId");
+
+if (!contractorId) {
+  alert("Invalid intake link.");
+}
 
 let messages = [];
 
@@ -37,52 +115,63 @@ function addMessage(text, type) {
 
 async function sendMessage() {
   const input = document.getElementById("input");
-  const text = input.value;
+  const text = input.value.trim();
   if (!text) return;
 
   addMessage(text, "user");
   messages.push({ role: "user", content: text });
   input.value = "";
 
-  const response = await fetch("/ai-intake", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ messages })
-  });
+  try {
+    const response = await fetch("/ai-intake", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages })
+    });
 
-  const data = await response.json();
-  const reply = data.reply;
+    const data = await response.json();
+    const reply = data.reply;
 
-  if (reply.startsWith("FINAL_JSON:")) {
-    const jsonText = reply.replace("FINAL_JSON:", "").trim();
-    const structured = JSON.parse(jsonText);
+    if (reply.startsWith("FINAL_JSON:")) {
 
-   await fetch("/complete", {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({
-    projectType: structured.projectType,
-    budget: structured.budgetRange,
-    timeline: structured.timeline,
-    zip: structured.zipCode,
-    name: structured.fullName,
-    email: structured.email,
-    phone: structured.phoneNumber,
-    contractorId
-  })
-});
+      const jsonText = reply.replace("FINAL_JSON:", "").trim();
+      const structured = JSON.parse(jsonText);
 
+      await fetch("/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectType: structured.projectType,
+          budget: structured.budgetRange,
+          timeline: structured.timeline,
+          zip: structured.zipCode,
+          name: structured.fullName,
+          email: structured.email,
+          phone: structured.phoneNumber,
+          contractorId,
+          transcript: JSON.stringify(messages)
+        })
+      });
 
-    addMessage("Thank you! A contractor will reach out shortly.", "ai");
-    return;
+      document.getElementById("completeMessage").innerText =
+        "Thank you! A contractor will contact you shortly.";
+
+      document.querySelector(".input-area").style.display = "none";
+      return;
+    }
+
+    addMessage(reply, "ai");
+    messages.push({ role: "assistant", content: reply });
+
+  } catch (err) {
+    addMessage("Something went wrong. Please try again.", "ai");
   }
-
-  addMessage(reply, "ai");
-  messages.push({ role: "assistant", content: reply });
 }
 
-addMessage("Hi! What kind of project are you planning?", "ai");
-messages.push({ role: "assistant", content: "Hi! What kind of project are you planning?" });
+// Initial greeting
+const greeting = "Hi! I'm here to help with your remodeling project. What kind of project are you planning?";
+addMessage(greeting, "ai");
+messages.push({ role: "assistant", content: greeting });
 </script>
 
 </body>
