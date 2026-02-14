@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Register</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+
+<h2>Create Contractor Account</h2>
+
+<input id="email" type="email" placeholder="Email" />
+<br><br>
+
+<input id="password" type="password" placeholder="Password" />
+<br><br>
+
+<button onclick="register()">Register</button>
+
+<p id="msg"></p>
+
+<script>
+async function register() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  if (!email || !password) {
+    document.getElementById("msg").innerText = "Email and password required.";
+    return;
+  }
+
+  try {
+    const res = await fetch("/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      document.getElementById("msg").innerText = "Registered successfully! Go to login.";
+    } else {
+      document.getElementById("msg").innerText = data.error;
+    }
+
+  } catch (err) {
+    document.getElementById("msg").innerText = "Registration failed.";
+  }
+}
+</script>
+
+</body>
+</html>
