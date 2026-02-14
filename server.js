@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const { Pool } = require("pg");
-const nodemailer = require("nodemailer");
 
 const app = express();
 app.use(express.json());
@@ -14,17 +13,6 @@ console.log("DATABASE_URL AT START:", process.env.DATABASE_URL);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-});
-
-/* ==============================
-   EMAIL
-============================== */
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
 });
 
 /* ==============================
@@ -85,9 +73,8 @@ app.post("/complete", async (req, res) => {
     if (convo.data.timeline === "ASAP") score += 3;
     if (convo.data.timeline === "SOON") score += 2;
 
-    const summary = "AI temporarily disabled.";
+    const summary = "AI disabled for now.";
 
-    /* SAVE TO DATABASE */
     await pool.query(
       "INSERT INTO leads (project_type, budget, timeline, name, email, phone, zip, score, summary) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
       [
@@ -105,27 +92,6 @@ app.post("/complete", async (req, res) => {
 
     console.log("Lead saved to database");
 
-    /* SEND EMAIL (NON-BLOCKING SAFE) */
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: process.env.CONTRACTOR_EMAIL,
-        subject: "New Qualified Remodel Lead",
-        text:
-          "Name: " + name +
-          "\nEmail: " + email +
-          "\nPhone: " + phone +
-          "\nZIP: " + zip +
-          "\nScore: " + score +
-          "\n\n" + summary
-      });
-
-      console.log("Email sent successfully");
-    } catch (emailErr) {
-      console.error("Email failed:", emailErr.message);
-    }
-
-    /* ALWAYS RETURN SUCCESS IF DB WORKED */
     res.json({ success: true });
 
   } catch (err) {
