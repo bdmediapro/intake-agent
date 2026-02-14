@@ -16,83 +16,52 @@ const pool = new Pool({
 });
 
 /* ==============================
-   MEMORY STORE
-============================== */
-let conversations = {};
-
-/* ==============================
-   START SESSION
-============================== */
-app.post("/start", (req, res) => {
-  const { sessionId, projectType, contractorId } = req.body;
-
-  conversations[sessionId] = {
-    projectType,
-    contractorId,
-    state: "ASK_BUDGET",
-    data: {},
-  };
-
-  console.log("Session started:", sessionId, "Contractor:", contractorId);
-  res.json({ success: true });
-});
-
-/* ==============================
-   CHAT
-============================== */
-app.post("/chat", (req, res) => {
-  const { sessionId, message } = req.body;
-  const convo = conversations[sessionId];
-
-  if (!convo) return res.status(400).json({ error: "No session found" });
-
-  if (convo.state === "ASK_BUDGET") {
-    convo.data.budget = message;
-    convo.state = "ASK_TIMELINE";
-  } else if (convo.state === "ASK_TIMELINE") {
-    convo.data.timeline = message;
-    convo.state = "COLLECT_CONTACT";
-  }
-
-  res.json({ success: true });
-});
-
-/* ==============================
-   COMPLETE
+   COMPLETE (STATELESS)
 ============================== */
 app.post("/complete", async (req, res) => {
   try {
-    const { sessionId, name, email, phone, zip } = req.body;
-    console.log("COMPLETE endpoint hit:", sessionId);
+    const {
+      projectType,
+      budget,
+      timeline,
+      name,
+      email,
+      phone,
+      zip,
+      contractorId
+    } = req.body;
 
-    const convo = conversations[sessionId];
-    if (!convo) return res.status(400).json({ error: "No session found" });
+    if (!projectType || !budget || !timeline || !name || !email) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     let score = 0;
-    if (convo.data.budget === "HIGH") score += 3;
-    if (convo.data.budget === "MID") score += 2;
-    if (convo.data.timeline === "ASAP") score += 3;
-    if (convo.data.timeline === "SOON") score += 2;
+    if (budget === "HIGH") score += 3;
+    if (budget === "MID") score += 2;
+    if (timeline === "ASAP") score += 3;
+    if (timeline === "SOON") score += 2;
 
     const summary = "AI disabled for now.";
 
     await pool.query(
-      "INSERT INTO leads (project_type, budget, timeline, name, email, phone, zip, score, summary, contractor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+      `INSERT INTO leads 
+      (project_type, budget, timeline, name, email, phone, zip, score, summary, contractor_id) 
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
-        convo.projectType,
-        convo.data.budget,
-        convo.data.timeline,
+        projectType,
+        budget,
+        timeline,
         name,
         email,
         phone,
         zip,
         score,
         summary,
-        convo.contractorId
+        contractorId || 1
       ]
     );
 
-    console.log("Lead saved to database for contractor:", convo.contractorId);
+    console.log("Lead saved (stateless mode)");
 
     res.json({ success: true });
 
@@ -107,7 +76,7 @@ app.post("/complete", async (req, res) => {
 ============================== */
 app.get("/dashboard", async (req, res) => {
   try {
-    const contractorId = 1; // TEMPORARY until login system
+    const contractorId = 1; // temp until login system
 
     const result = await pool.query(
       "SELECT * FROM leads WHERE contractor_id = $1 ORDER BY created_at DESC",
@@ -181,8 +150,6 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log("Server running on port " + PORT);
 
   try {
-
-    /* CONTRACTORS TABLE */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS contractors (
         id SERIAL PRIMARY KEY,
@@ -193,7 +160,6 @@ app.listen(PORT, "0.0.0.0", async () => {
       );
     `);
 
-    /* LEADS TABLE */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS leads (
         id SERIAL PRIMARY KEY,
@@ -211,14 +177,13 @@ app.listen(PORT, "0.0.0.0", async () => {
       );
     `);
 
-    /* SEED DEMO CONTRACTOR */
     await pool.query(`
       INSERT INTO contractors (name, email, password)
       VALUES ('Demo Contractor', 'demo@contractor.com', 'password123')
       ON CONFLICT (email) DO NOTHING;
     `);
 
-    console.log("Database initialized with contractors");
+    console.log("Database initialized (stateless mode)");
 
   } catch (err) {
     console.error("Database init failed:", err.message);
